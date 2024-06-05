@@ -1,6 +1,7 @@
+import matplotlib.pyplot as plt
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+
 
 def display_image(image,title="Image"):
     plt.figure(figsize=(10, 10))
@@ -22,4 +23,4 @@ def reduce_colors(image, k):
     plt.title('image after kmeans')
     plt.axis('off')
     plt.show()
-    return result_image
+    return result_image, center
