@@ -18,9 +18,4 @@ def reduce_colors(image, k):
     center = np.uint8(center)
     res = center[label.flatten()]
     result_image = res.reshape((image.shape))
-    plt.figure(figsize=(10, 10))
-    plt.imshow(result_image)
-    plt.title('image after kmeans')
-    plt.axis('off')
-    plt.show()
     return result_image, center
