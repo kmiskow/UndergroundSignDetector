@@ -1,11 +1,9 @@
 import cv2
 import numpy as np
-from preprocess import display_image, reduce_colors
-
+from preprocess import display_image, reduce_colors, calculate_hu_moments, calculate_moments,apply_filter
 class Detector:
     def __init__(self, template_path:str):
         self.template_shapes = self._detect_shapes(template_path)
-
     def detect(self,image_path:str, debug = False):
         test_shapes = self._detect_shapes(image_path,debug = debug)
 
@@ -20,7 +18,6 @@ class Detector:
         if debug:
             display_image(image_test_rgb, "Image with matched rectangles")
 
-        # Check for valid combinations of upper and lower red half-moons and blue rectangle
         valid_signs = self._check_underground_sign_combinations(matched_shapes)
         if debug:
             print("Valid underground signs:", valid_signs)
@@ -36,16 +33,15 @@ class Detector:
         display_image(image_test_rgb,'Test Image with Valid Underground Signs')
 
 
-
     def _detect_shapes(self,image_path,debug = False):
         image = cv2.imread(image_path)
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        image_rgb = cv2.convertScaleAbs(image_rgb, alpha=1.5, beta=0)
+        # kernel = np.ones((5,5),np.float32)/25
+        # image_rgb = apply_filter(image_rgb,kernel)
 
-        # image_rgb = cv2.convertScaleAbs(image_rgb, alpha=2.0, beta=20)
-        # display_image(image_rgb,'After processing')
-    
-        # Reduce colors to 8 clusters
-        reduced_color_image, centers = reduce_colors(image_rgb, 8)
+        reduced_color_image, _ = reduce_colors(image_rgb, 8)
         if debug:
             display_image(reduced_color_image, "image after k-means")
         hsv_image = cv2.cvtColor(reduced_color_image, cv2.COLOR_RGB2HSV)
@@ -66,19 +62,18 @@ class Detector:
         contours_blue, _ = cv2.findContours(blue_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         detected_shapes = []
-
         image_height = image.shape[0]
+        image_width = image.shape[1]
         middle_y = image_height // 2
 
         for contour in contours_red:
             x, y, w, h = cv2.boundingRect(contour)
-            moments = cv2.moments(contour)
+            moments = calculate_moments(contour)
             if moments['m00'] != 0:
                 center_x = int(moments['m10'] / moments['m00'])
                 center_y = int(moments['m01'] / moments['m00'])
             else:
                 continue
-                center_x, center_y = 0, 0
             if center_y < y+h/2:
                 label = 'upper_red_half_moon'
                 cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 255, 0), 2)
@@ -86,15 +81,15 @@ class Detector:
                 label = 'lower_red_half_moon'
                 cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-            hu_moments = cv2.HuMoments(moments).flatten()
+            hu_moments = calculate_hu_moments(moments).flatten()
             detected_shapes.append((label, (x, y, w, h), hu_moments, (center_x, center_y)))
 
-            
 
         for contour in contours_blue:
             x, y, w, h = cv2.boundingRect(contour)
-            moments = cv2.moments(contour)
-            hu_moments = cv2.HuMoments(moments).flatten()
+            moments = calculate_moments(contour)
+            hu_moments = calculate_hu_moments(moments).flatten()
+
             detected_shapes.append(('blue_rectangle', (x, y, w, h), hu_moments))
             cv2.rectangle(image_rgb, (x, y), (x + w, y + h), (0, 0, 255), 2)
         if debug:
@@ -102,7 +97,7 @@ class Detector:
 
         return detected_shapes
     
-    def _match_shapes(self,template_shapes, test_shapes, distance_threshold=0.1):
+    def _match_shapes(self,template_shapes, test_shapes, distance_threshold=0.5):
         matched_shapes = []
 
         for test_shape in test_shapes:
@@ -132,10 +127,9 @@ class Detector:
             for lower in lower_halfmoons:
                 upper_center_x, upper_center_y = upper[0][3]
                 lower_center_x, lower_center_y = lower[0][3]
-                distance_x = upper_center_x - lower_center_x
-                distance_y = upper_center_y - lower_center_y
-
-                if distance_x < 0.1 * upper[0][1][2]  and distance_y<0.5*upper[0][1][3] and upper[0][1][2] < lower[0][1][2] *1.1:
+                distance_x = abs(upper_center_x - lower_center_x)
+                distance_y = abs(upper_center_y - lower_center_y)
+                if distance_x < 0.5 * upper[0][1][2]  and distance_y<2*upper[0][1][3] and upper[0][1][2] < lower[0][1][2] *1.1:
                     for blue in blue_rectangles:
                         if blue not in used:
                             upper_y = upper[0][1][1] + upper[0][1][3]
