@@ -38,8 +38,10 @@ class Detector:
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
         image_rgb = cv2.convertScaleAbs(image_rgb, alpha=1.5, beta=0)
-        # kernel = np.ones((5,5),np.float32)/25
-        # image_rgb = apply_filter(image_rgb,kernel)
+        kernel = np.array([[0.0625, 0.125, 0.0625],
+                   [0.125, 0.25, 0.125],
+                   [0.0625, 0.125, 0.0625]])
+        image_rgb = apply_filter(image_rgb,kernel)
 
         reduced_color_image, _ = reduce_colors(image_rgb, 8)
         if debug:
